@@ -1,4 +1,4 @@
-import { assignRole } from "../../application/roles/roleManager.js";
+import { assignRole } from "../application/roles/roleManager.js";
 import { Collection } from "discord.js";
 import * as createRoleButton from "../commands/createRoleButton.js";
 
