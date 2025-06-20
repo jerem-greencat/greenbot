@@ -4,7 +4,8 @@ export async function assignRole(interaction, selectedRole) {
     const member = interaction.member;
     const guildRoles = interaction.guild.roles.cache;
     
-    const roleToAdd = guildRoles.find(r => r.name.toLowerCase() === selectedRole);
+    const roleToAdd = guildRoles.find(r => r.name.toLowerCase().includes(selectedRole));
+
     const rolesToRemove = getIncompatibleRoles(selectedRole).map(roleName =>
         guildRoles.find(r => r.name.toLowerCase() === roleName)
     );
