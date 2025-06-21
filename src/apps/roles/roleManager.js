@@ -23,7 +23,6 @@ export async function assignRole(interaction, selectedRole) {
     const member = interaction.member;
     const guildRoles = interaction.guild.roles.cache;
     
-    // Recherche souple (nom avec emoji)
     const roleToAdd = guildRoles.find(r =>
         r.name.toLowerCase().includes(selectedRole)
     );
@@ -39,24 +38,18 @@ export async function assignRole(interaction, selectedRole) {
         guildRoles.find(r => r.name.toLowerCase().includes(roleName))
     );
     
-    // Modification des rôles
     try {
         await member.roles.add(roleToAdd);
         for (const r of rolesToRemove) {
             if (r) await member.roles.remove(r);
         }
         
-        // Supprime le reply existant s’il y en a un (boutons)
+        const message = `<@${interaction.user.id}>\n${roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`}`;
+        
         if (interaction.deferred || interaction.replied) {
-            await interaction.followUp({
-                content: roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`,
-                ephemeral: false,
-            });
+            await interaction.followUp({ content: message, ephemeral: false });
         } else {
-            await interaction.reply({
-                content: roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`,
-                ephemeral: false,
-            });
+            await interaction.reply({ content: message, ephemeral: false });
         }
         
     } catch (err) {
