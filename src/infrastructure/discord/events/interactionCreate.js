@@ -1,5 +1,5 @@
 import { Events } from "discord.js";
-import { assignRole } from "../../services/roleManager.js";
+import { assignRole } from "../../../apps/roles/roleManager.js";
 import { execute as createRoleButtonCommand } from "../commands/createRoleButton.js";
 
 export const interactionCreate = {
