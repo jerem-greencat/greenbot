@@ -4,38 +4,42 @@ import {
     ButtonBuilder,
     ButtonStyle
 } from "discord.js";
+import { roleNameMap } from "../../../domain/roles/roleMapping.js";
 
 export const data = new SlashCommandBuilder()
 .setName("create-role-button")
-.setDescription("Crée un ou plusieurs boutons pour que les utilisateurs choisissent un rôle")
+.setDescription("Crée un bouton pour que les utilisateurs choisissent un rôle")
 .addStringOption(option =>
-    option.setName("roles")
-    .setDescription("Choisir un ou plusieurs rôles (séparés par une virgule)")
+    option.setName("role")
+    .setDescription("Choisir le rôle à associer")
     .setRequired(true)
+    .addChoices(
+        { name: "Wolf", value: "wolf" },
+        { name: "Neutre", value: "neutre" },
+        { name: "Bear", value: "bear" }
+    )
 );
 
 export async function execute(interaction) {
-    const rolesInput = interaction.options.getString("roles"); // e.g. "wolf, bear"
-    const roles = rolesInput.split(",").map(r => r.trim().toLowerCase());
+    const selectedRoleKey = interaction.options.getString("role");
+    const fullRoleName = roleNameMap[selectedRoleKey];
     
-    if (roles.length > 5) {
+    if (!fullRoleName) {
         return interaction.reply({
-            content: "Tu ne peux créer que 5 boutons maximum à la fois.",
+            content: `Le rôle "${selectedRoleKey}" est inconnu.`,
             ephemeral: true
         });
     }
     
-    const buttons = roles.map(role =>
-        new ButtonBuilder()
-        .setCustomId(`role:${role}`)
-        .setLabel(`Rejoindre ${role}`)
-        .setStyle(ButtonStyle.Primary)
-    );
+    const button = new ButtonBuilder()
+    .setCustomId(`role:${selectedRoleKey}`) // identifiant simple
+    .setLabel(`Rejoindre ${fullRoleName}`)  // label avec emoji
+    .setStyle(ButtonStyle.Primary);
     
-    const row = new ActionRowBuilder().addComponents(...buttons);
+    const row = new ActionRowBuilder().addComponents(button);
     
     await interaction.reply({
-        content: `Voici les boutons pour les rôles : ${roles.join(", ")}`,
+        content: `Bouton créé pour le rôle ${fullRoleName}`,
         components: [row]
     });
 }
