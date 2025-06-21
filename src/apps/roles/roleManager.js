@@ -59,7 +59,7 @@ export async function assignRole(interaction, selectedRole) {
     await interaction.deferUpdate();
     
     const roleMessages = {
-        bear: `
+        bear:'\n' + `
         👤 <@${member.id}>
         
         🐻 Tu as rejoint les Bears.
@@ -70,7 +70,7 @@ Organisé, implacable, tu avances avec ton clan pour écraser toute résistance.
 🔓 Accès débloqué au QG des Bears.
 
 `,
-        wolf: `
+        wolf:'\n' + `
         👤 <@${member.id}>
         
         🐺 Tu as prêté allégeance aux Wolfs.
@@ -80,7 +80,7 @@ Rusé, loyal et stratégique, tu défends l'équilibre et ton territoire sans va
 🔓 Accès débloqué au camp des Wolfs.
 
 `,
-        neutre: `
+        neutre: '\n' +`
         👤 <@${member.id}>
         
         🤝 Tu restes Neutre.
