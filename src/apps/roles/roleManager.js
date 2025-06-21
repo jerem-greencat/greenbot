@@ -1,6 +1,5 @@
 import { getIncompatibleRoles } from "../../domain/roles/roleRules.js";
 
-// Associe chaque rôle à son emoji
 const roleEmojis = {
     bear: "🐻",
     wolf: "🐺",
@@ -42,29 +41,31 @@ export async function assignRole(interaction, selectedRole) {
         });
     }
     
-    // Ajoute et retire les rôles
+    // Ajout du nouveau rôle
     await member.roles.add(roleToAdd).catch(console.error);
+    
+    // Suppression des rôles incompatibles
     for (const r of rolesToRemove) {
         if (r) await member.roles.remove(r).catch(console.error);
     }
     
-    // 📌 Ajouter la réaction correspondante au message du bouton
+    // ✅ Gérer les réactions
     const emoji = roleEmojis[selectedRole];
     const message = interaction.message;
     
     if (message && emoji) {
         try {
-            // Ajoute la réaction
+            // 1. Ajouter la réaction du rôle sélectionné
             await message.react(emoji);
             
-            // Supprime les réactions des autres rôles incompatibles
+            // 2. Retirer les réactions des rôles incompatibles pour ce membre
             const incompatible = getIncompatibleRoles(selectedRole);
             for (const r of incompatible) {
                 const wrongEmoji = roleEmojis[r];
                 if (wrongEmoji) {
-                    const userReactions = message.reactions.cache.get(wrongEmoji);
-                    if (userReactions) {
-                        await userReactions.users.remove(member.user.id).catch(() => {});
+                    const reaction = message.reactions.cache.get(wrongEmoji);
+                    if (reaction) {
+                        await reaction.users.remove(member.user.id).catch(() => {});
                     }
                 }
             }
@@ -73,7 +74,7 @@ export async function assignRole(interaction, selectedRole) {
         }
     }
     
-    // 📣 Message visible à tous
+    // 💬 Message public
     const user = interaction.user;
     return interaction.reply({
         content: `${user} ${roleMessages[selectedRole]}`,
