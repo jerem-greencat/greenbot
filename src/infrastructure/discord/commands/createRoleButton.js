@@ -42,13 +42,12 @@ export async function execute(interaction) {
     collector.on("collect", async selectInteraction => {
         const selectedRoles = selectInteraction.values;
         
-        const buttons = selectedRoles.map(role => {
-            return new ButtonBuilder()
-            .setCustomId(`role:${role}`)
-            .setLabel(roleLabels[role])
-            .setStyle(ButtonStyle.Secondary); 
-        });
-        
+        const buttons = selectedRoles.map(roleKey =>
+            new ButtonBuilder()
+            .setCustomId(`role:${roleKey}`)
+            .setLabel(`${roleNameMap[roleKey]}`)
+            .setStyle(ButtonStyle.Secondary)
+        );
         
         const row = new ActionRowBuilder().addComponents(buttons);
         
