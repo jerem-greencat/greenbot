@@ -2,44 +2,64 @@ import {
     SlashCommandBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
+    ComponentType
 } from "discord.js";
 import { roleNameMap } from "../../../domain/roles/roleMapping.js";
 
 export const data = new SlashCommandBuilder()
 .setName("create-role-button")
-.setDescription("Crée un bouton pour que les utilisateurs choisissent un rôle")
-.addStringOption(option =>
-    option.setName("role")
-    .setDescription("Choisir le rôle à associer")
-    .setRequired(true)
-    .addChoices(
-        { name: "Wolf", value: "wolf" },
-        { name: "Neutre", value: "neutre" },
-        { name: "Bear", value: "bear" }
-    )
-);
+.setDescription("Crée un menu pour choisir plusieurs rôles");
 
 export async function execute(interaction) {
-    const selectedRoleKey = interaction.options.getString("role");
-    const fullRoleName = roleNameMap[selectedRoleKey];
+    const menu = new StringSelectMenuBuilder()
+    .setCustomId("select-roles")
+    .setPlaceholder("Choisis un ou plusieurs rôles")
+    .setMinValues(1)
+    .setMaxValues(3)
+    .addOptions(
+        new StringSelectMenuOptionBuilder().setLabel("🐺🔵 Wolf 🔵🐺").setValue("wolf"),
+        new StringSelectMenuOptionBuilder().setLabel("⚪️ Neutre ⚪️").setValue("neutre"),
+        new StringSelectMenuOptionBuilder().setLabel("🐻🔴 Bear 🔴🐻").setValue("bear")
+    );
     
-    if (!fullRoleName) {
-        return interaction.reply({
-            content: `Le rôle "${selectedRoleKey}" est inconnu.`,
-            ephemeral: true
-        });
-    }
-    
-    const button = new ButtonBuilder()
-    .setCustomId(`role:${selectedRoleKey}`) // identifiant simple
-    .setLabel(`Rejoindre ${fullRoleName}`)  // label avec emoji
-    .setStyle(ButtonStyle.Primary);
-    
-    const row = new ActionRowBuilder().addComponents(button);
+    const row = new ActionRowBuilder().addComponents(menu);
     
     await interaction.reply({
-        content: `Bouton créé pour le rôle ${fullRoleName}`,
-        components: [row]
+        content: "Choisis les rôles à ajouter sous forme de boutons :",
+        components: [row],
+        ephemeral: true
+    });
+    
+    const collector = interaction.channel.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60_000,
+        max: 1
+    });
+    
+    collector.on("collect", async selectInteraction => {
+        const selectedRoles = selectInteraction.values;
+        
+        const buttons = selectedRoles.map(roleKey =>
+            new ButtonBuilder()
+            .setCustomId(`role:${roleKey}`)
+            .setLabel(`Rejoindre ${roleNameMap[roleKey]}`)
+            .setStyle(ButtonStyle.Primary)
+        );
+        
+        const row = new ActionRowBuilder().addComponents(buttons);
+        
+        await selectInteraction.reply({
+            content: "Voici les boutons pour les rôles sélectionnés :",
+            components: [row]
+        });
+    });
+    
+    collector.on("end", collected => {
+        if (collected.size === 0) {
+            interaction.followUp({ content: "⏱️ Temps écoulé, aucun rôle sélectionné.", ephemeral: true });
+        }
     });
 }
