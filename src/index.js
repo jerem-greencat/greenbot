@@ -12,6 +12,7 @@ client.once(Events.ClientReady, () => {
     console.log(`🤖 Bot prêt : ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, interactionCreate);
+client.on(Events.InteractionCreate, interactionCreate.execute);
+
 
 client.login(process.env.DISCORD_TOKEN);
