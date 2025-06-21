@@ -45,14 +45,14 @@ export async function execute(interaction) {
         const buttons = selectedRoles.map(roleKey =>
             new ButtonBuilder()
             .setCustomId(`role:${roleKey}`)
-            .setLabel(`Rejoindre ${roleNameMap[roleKey]}`)
+            .setLabel(`${roleNameMap[roleKey]}`)
             .setStyle(ButtonStyle.Primary)
         );
         
         const row = new ActionRowBuilder().addComponents(buttons);
         
         await selectInteraction.reply({
-            content: "Voici les boutons pour les rôles sélectionnés :",
+            content: "",
             components: [row]
         });
     });
