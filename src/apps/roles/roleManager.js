@@ -1,6 +1,5 @@
 import { getIncompatibleRoles } from "../../domain/roles/roleRules.js";
 
-// 📜 Messages associés aux rôles
 const roleMessages = {
     bear: `🐻 Tu as rejoint les Bears.
 La force brute, l'ordre et la domination sont ta voie.
@@ -24,21 +23,47 @@ export async function assignRole(interaction, selectedRole) {
     const member = interaction.member;
     const guildRoles = interaction.guild.roles.cache;
     
-    const roleToAdd = guildRoles.find(r => r.name.toLowerCase().includes(selectedRole));
+    // Recherche souple (nom avec emoji)
+    const roleToAdd = guildRoles.find(r =>
+        r.name.toLowerCase().includes(selectedRole)
+    );
+    
+    if (!roleToAdd) {
+        return interaction.reply({
+            content: `❌ Rôle "${selectedRole}" introuvable.`,
+            ephemeral: true,
+        });
+    }
+    
     const rolesToRemove = getIncompatibleRoles(selectedRole).map(roleName =>
         guildRoles.find(r => r.name.toLowerCase().includes(roleName))
     );
     
-    if (!roleToAdd) {
-        return interaction.reply({ content: `❌ Rôle "${selectedRole}" introuvable.`, ephemeral: true });
+    // Modification des rôles
+    try {
+        await member.roles.add(roleToAdd);
+        for (const r of rolesToRemove) {
+            if (r) await member.roles.remove(r);
+        }
+        
+        // Supprime le reply existant s’il y en a un (boutons)
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp({
+                content: roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`,
+                ephemeral: false,
+            });
+        } else {
+            await interaction.reply({
+                content: roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`,
+                ephemeral: false,
+            });
+        }
+        
+    } catch (err) {
+        console.error("Erreur lors de l'attribution du rôle :", err);
+        return interaction.reply({
+            content: `❌ Une erreur est survenue lors de l'attribution du rôle.`,
+            ephemeral: true,
+        });
     }
-    
-    await member.roles.add(roleToAdd).catch(console.error);
-    for (const r of rolesToRemove) {
-        if (r) await member.roles.remove(r).catch(console.error);
-    }
-    
-    const message = roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`;
-    
-    return interaction.reply({ content: message, ephemeral: false });
 }
