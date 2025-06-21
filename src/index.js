@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Events } from "discord.js";
 import dotenv from "dotenv";
-import { handleInteraction } from "./infrastructure/discord/events/interactionCreate.js";
+import { interactionCreate } from "./infrastructure/discord/events/interactionCreate.js";
 
 dotenv.config();
 
@@ -12,6 +12,6 @@ client.once(Events.ClientReady, () => {
     console.log(`🤖 Bot prêt : ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, handleInteraction);
+client.on(Events.InteractionCreate, interactionCreate);
 
 client.login(process.env.DISCORD_TOKEN);
