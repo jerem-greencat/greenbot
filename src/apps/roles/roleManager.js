@@ -1,30 +1,36 @@
 import { getIncompatibleRoles } from "../../domain/roles/roleRules.js";
-import { roleNameMap } from "../../domain/roles/roleMapping.js";
 
-export async function assignRole(interaction, selectedRoleKey) {
+// 📜 Messages associés aux rôles
+const roleMessages = {
+    bear: `🐻 Tu as rejoint les Bears.
+La force brute, l'ordre et la domination sont ta voie.
+Organisé, implacable, tu avances avec ton clan pour écraser toute résistance. 
+Prépare toi à prendre ce qui te revient.
+    
+🔓 Accès débloqué au QG des Bears. 
+Rassemble tes camarades.`,
+    
+    wolf: `🐺 Tu as prêté allégeance aux Wolfs.
+Rusé, loyal et stratégique, tu défends l'équilibre et ton territoire sans vaciller. La meute veille... et riposte.
+    
+🔓 Accès débloqué au camp des Wolfs. 
+Garde ta parole, protège les tiens.`,
+    
+    neutre: `🤝 Tu restes Neutre.
+Libre de tes mouvements, libre de tes alliances... mais aussi seul face au chaos. Pas de clan, pas de protection. Juste toi, et ton instinct.`
+};
+
+export async function assignRole(interaction, selectedRole) {
     const member = interaction.member;
     const guildRoles = interaction.guild.roles.cache;
     
-    // Map le nom simplifié vers le vrai nom
-    const fullRoleName = roleNameMap[selectedRoleKey];
-    
-    if (!fullRoleName) {
-        return interaction.reply({
-            content: `Le rôle "${selectedRoleKey}" n'est pas reconnu.`,
-            ephemeral: true
-        });
-    }
-    
-    const roleToAdd = guildRoles.find(r => r.name === fullRoleName);
-    const rolesToRemove = getIncompatibleRoles(selectedRoleKey)
-    .map(key => roleNameMap[key])
-    .map(name => guildRoles.find(r => r.name === name));
+    const roleToAdd = guildRoles.find(r => r.name.toLowerCase().includes(selectedRole));
+    const rolesToRemove = getIncompatibleRoles(selectedRole).map(roleName =>
+        guildRoles.find(r => r.name.toLowerCase().includes(roleName))
+    );
     
     if (!roleToAdd) {
-        return interaction.reply({
-            content: `Le rôle "${fullRoleName}" est introuvable sur le serveur.`,
-            ephemeral: true
-        });
+        return interaction.reply({ content: `❌ Rôle "${selectedRole}" introuvable.`, ephemeral: true });
     }
     
     await member.roles.add(roleToAdd).catch(console.error);
@@ -32,8 +38,7 @@ export async function assignRole(interaction, selectedRoleKey) {
         if (r) await member.roles.remove(r).catch(console.error);
     }
     
-    return interaction.reply({
-        content: `Tu es maintenant ${selectedRoleKey} !`,
-        ephemeral: true
-    });
+    const message = roleMessages[selectedRole] || `✅ Tu es maintenant ${selectedRole}.`;
+    
+    return interaction.reply({ content: message, ephemeral: false });
 }
