@@ -75,5 +75,34 @@ Libre de tes mouvements, libre de tes alliances... mais aussi seul face au chaos
     if (message) {
         await interaction.channel.send({ content: message });
     }
+    
+    // Mise à jour dynamique du message de répartition des rôles
+    const channel = interaction.channel;
+    
+    // Récupère les derniers messages du canal pour trouver celui d'aperçu
+    const messages = await channel.messages.fetch({ limit: 10 });
+    const previewMessage = messages.find(msg =>
+        msg.author.id === interaction.client.user.id &&
+        msg.content.startsWith("**Répartition actuelle des rôles :**")
+    );
+    
+    if (previewMessage) {
+        // Recompter les membres pour chaque rôle
+        const guild = interaction.guild;
+        await guild.members.fetch(); // Assure qu'on a tous les membres
+        
+        const counts = {
+            bear: guild.members.cache.filter(m => m.roles.cache.some(r => r.name.toLowerCase().includes("bear"))).size,
+            wolf: guild.members.cache.filter(m => m.roles.cache.some(r => r.name.toLowerCase().includes("wolf"))).size,
+            neutre: guild.members.cache.filter(m => m.roles.cache.some(r => r.name.toLowerCase().includes("neutre"))).size,
+        };
+        
+        const updatedContent = `**Répartition actuelle des rôles :**\n🐻 Bear : ${counts.bear}\n🐺 Wolf : ${counts.wolf}\n⚪️ Neutre : ${counts.neutre}`;
+        
+        await previewMessage.edit({ content: updatedContent });
+    } else {
+        console.warn("🔍 Aucun message de répartition trouvé à mettre à jour.");
+    }
+    
 }
 
