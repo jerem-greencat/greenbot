@@ -1,5 +1,5 @@
-export const roleNameMap = {
-    bear: "🐻🔴 Bear 🔴🐻",
-    wolf: "🐺🔵 Wolf 🔵🐺",
-    neutre: "⚪️ Neutre ⚪️"
-};
+// export const roleNameMap = {
+//     bear: "🐻🔴 Bear 🔴🐻",
+//     wolf: "🐺🔵 Wolf 🔵🐺",
+//     neutre: "⚪️ Neutre ⚪️"
+// };
