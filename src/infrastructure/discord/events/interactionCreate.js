@@ -37,6 +37,12 @@ export default async function onInteractionCreate(interaction) {
         const { default: cmd } = await import('../commands/createRoleButton.js');
         return cmd.execute(interaction);
       }
+
+            // 2️⃣ /set-report-channel
+      if (interaction.commandName === 'set-report-channel') {
+        const { default: cmd } = await import('../commands/setReportChannel.js');
+        return cmd.execute(interaction);
+      }
       return;
     }
 
