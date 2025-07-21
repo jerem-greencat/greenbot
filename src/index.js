@@ -1,3 +1,5 @@
+// src/index.js
+
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import mongoose from 'mongoose';
@@ -88,31 +90,33 @@ client.once(Events.ClientReady, async () => {
             const channel = guild.channels.cache.get(cfg.reportChannelId);
             if (!channel?.isTextBased()) continue;
             
-            // Récupère la liste des joueurs en base
+            // ── 1) Supprimer l’ancien message si on en a gardé l’ID
+            if (cfg.lastReportMessageId) {
+                try {
+                    const oldMsg = await channel.messages.fetch(cfg.lastReportMessageId);
+                    await oldMsg.delete();
+                } catch {
+                    // ignore si déjà supprimé ou introuvable
+                }
+            }
+            
+            // ── 2) Construire les listes Bears/Wolves
             const playersDoc = await coll.findOne({ _id: 'playersList' });
             const players    = playersDoc?.players ?? [];
-            
-            // Filtre par rôle via le cache Discord
-            const bearName = process.env.BEAR_ROLE_NAME;
-            const wolfName = process.env.WOLF_ROLE_NAME;
+            const bearName   = process.env.BEAR_ROLE_NAME;
+            const wolfName   = process.env.WOLF_ROLE_NAME;
             
             const bears = players
-            .filter(p => {
-                const m = guild.members.cache.get(p.userId);
-                return m?.roles.cache.some(r => r.name === bearName);
-            })
+            .filter(p => guild.members.cache.get(p.userId)?.roles.cache.some(r => r.name === bearName))
             .map(p => `<@${p.userId}>`);
             
             const wolves = players
-            .filter(p => {
-                const m = guild.members.cache.get(p.userId);
-                return m?.roles.cache.some(r => r.name === wolfName);
-            })
+            .filter(p => guild.members.cache.get(p.userId)?.roles.cache.some(r => r.name === wolfName))
             .map(p => `<@${p.userId}>`);
             
-            // Compose et envoie le message
+            // ── 3) Envoyer le nouveau rapport et enregistrer son ID
             const dateStr = new Date().toLocaleDateString('fr-FR');
-            const msg = [
+            const msgBody = [
                 `**📊 Rapport quotidien — ${dateStr}**`,
                 ``,
                 `**🐻 Bears (${bears.length})**`,
@@ -122,7 +126,12 @@ client.once(Events.ClientReady, async () => {
                 wolves.length ? wolves.join(' ') : '_Aucun_'
             ].join('\n');
             
-            await channel.send(msg);
+            const sent = await channel.send(msgBody);
+            await coll.updateOne(
+                { _id: 'config' },
+                { $set: { lastReportMessageId: sent.id } },
+                { upsert: true }
+            );
         }
     }, {
         scheduled: true,
