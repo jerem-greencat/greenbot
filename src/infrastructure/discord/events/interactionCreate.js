@@ -1,3 +1,5 @@
+// src/infrastructure/discord/events/interactionCreate.js
+
 import { Events, PermissionFlagsBits } from 'discord.js';
 import mongoose from 'mongoose';
 
@@ -30,7 +32,7 @@ Libre de tes mouvements, libre de tes alliances... mais aussi seul face au chaos
 
 export default async function onInteractionCreate(interaction) {
     try {
-        // 1️⃣ Slash-command routing (ex. /create-role-button)
+        // ─── Slash-commands ────────────────────────────────────────────
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'create-role-button') {
                 const { default: cmd } = await import('../commands/createRoleButton.js');
@@ -39,17 +41,16 @@ export default async function onInteractionCreate(interaction) {
             return;
         }
         
-        // 2️⃣ Ne traiter que les boutons
+        // ─── Seulement les clics de bouton ────────────────────────────
         if (!interaction.isButton()) return;
-        
-        const btn    = interaction;
-        const member = btn.member;
-        const guild  = btn.guild;
+        const member = interaction.member;
+        const guild  = interaction.guild;
         const db     = mongoose.connection.db;
         const coll   = db.collection(`server_${guild.id}`);
         
-        // 3️⃣ Déterminer le rôle choisi
-        const [, , roleKey] = btn.customId.split('_'); // Bear, Wolf ou Neutral
+        // ─── Déterminer le rôle choisi via le customId ────────────────
+        // customId = "select_excl_Bear" | "select_excl_Wolf" | "select_excl_Neutral"
+        const [, , roleKey] = interaction.customId.split('_'); // Bear, Wolf ou Neutral
         const roleNameMap = {
             Bear:    process.env.BEAR_ROLE_NAME,
             Wolf:    process.env.WOLF_ROLE_NAME,
@@ -58,13 +59,13 @@ export default async function onInteractionCreate(interaction) {
         const desiredName = roleNameMap[roleKey];
         const desiredRole = guild.roles.cache.find(r => r.name === desiredName);
         if (!desiredRole) {
-            return btn.reply({ content: '❌ Rôle introuvable.', ephemeral: true });
+            return interaction.reply({ content: '❌ Rôle introuvable.', ephemeral: true });
         }
         
-        // 4️⃣ Check admin pour bypass délai
+        // ─── Check admin pour bypass délai 48 h ────────────────────────
         const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
         
-        // 5️⃣ Récupérer lastExclusiveChange en base
+        // ─── Récupérer lastExclusiveChange en base ────────────────────
         const doc = await coll.findOne(
             { _id: 'playersList', 'players.userId': member.id },
             { projection: { 'players.$': 1 } }
@@ -74,31 +75,37 @@ export default async function onInteractionCreate(interaction) {
         ? new Date(player.lastExclusiveChange)
         : new Date(0);
         
-        // 6️⃣ Vérifier délai 48h si pas admin
+        // ─── Vérifier délai 48 h si pas admin ─────────────────────────
         const now   = Date.now();
         const delay = 48 * 60 * 60 * 1000;
         if (!isAdmin && (now - lastChange) < delay) {
-            return btn.reply({
+            return interaction.reply({
                 content: `🕒 Vous ne pouvez changer votre rôle exclusif qu'une fois toutes les 48 heures.\nDernière modif : ${lastChange.toLocaleString()}.`,
                 ephemeral: true
             });
         }
         
-        // 7️⃣ Retirer les autres rôles exclusifs
-        const exclusive = Object.values(roleNameMap);
-        const toRemove = guild.roles.cache
-        .filter(r => exclusive.includes(r.name) && r.id !== desiredRole.id)
+        // ─── Retirer **uniquement** les deux autres rôles exclusifs ────
+        const exclusiveNames = Object.values(roleNameMap);
+        const toRemove = member.roles.cache
+        .filter(r => exclusiveNames.includes(r.name) && r.id !== desiredRole.id)
         .map(r => r.id);
-        if (toRemove.length) await member.roles.remove(toRemove);
+        if (toRemove.length) {
+            await member.roles.remove(toRemove);
+        }
         
-        // 8️⃣ Ajouter le rôle choisi
+        // ─── Ajouter le rôle choisi (s’il ne l’a pas déjà) ────────────
         if (!member.roles.cache.has(desiredRole.id)) {
             await member.roles.add(desiredRole.id);
         }
         
-        // 9️⃣ Refetch + mise à jour en base
+        // ─── Refetch et mise à jour en base ───────────────────────────
         const updated = await member.fetch();
-        const updatedRoleIds = updated.roles.cache.map(r => r.id);
+        const updatedRoleIds = updated.roles.cache
+        // retire @everyone si présent
+        .filter(r => r.id !== guild.id)
+        .map(r => r.id);
+        
         await coll.updateOne(
             { _id: 'playersList' },
             {
@@ -110,13 +117,13 @@ export default async function onInteractionCreate(interaction) {
             { arrayFilters: [{ 'p.userId': member.id }] }
         );
         
-        // 🔟 Envoyer le message de confirmation
+        // ─── Envoyer le message de confirmation public ───────────────
         let key = roleKey.toLowerCase();
         if (key === 'neutral') key = 'neutre';
-        const tmpl   = roleMessages[key] ?? '✅ Votre rôle exclusif a été mis à jour.';
-        const content = tmpl.replace('{{id}}', member.id);
-        await btn.reply({ content, ephemeral: false });
+        const template = roleMessages[key] || '✅ Votre rôle exclusif a été mis à jour.';
+        const content  = template.replace('{{id}}', member.id);
         
+        await interaction.reply({ content, ephemeral: false });
     } catch (err) {
         console.error('Erreur dans interactionCreate:', err);
         if (interaction.deferred || interaction.replied) {
