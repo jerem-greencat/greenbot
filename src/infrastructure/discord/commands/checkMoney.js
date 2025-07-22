@@ -19,18 +19,17 @@ export default {
         const requested = interaction.options.getUser('member');
         const isAdmin   = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
         
-        let targetUser;
+        // Si pas d'option, on cible soi-même
+        // Sinon, si on cible un autre et qu'on n'est pas admin → erreur
+        let targetUser = interaction.user;
         if (requested) {
-            if (!isAdmin) {
+            if (requested.id !== interaction.user.id && !isAdmin) {
                 return interaction.reply({
                     content: '❌ Vous ne pouvez vérifier que votre propre solde.',
                     ephemeral: true
                 });
             }
             targetUser = requested;
-        } else {
-            // si pas d'option, cible toujours soi-même
-            targetUser = interaction.user;
         }
         
         // Lecture en base
