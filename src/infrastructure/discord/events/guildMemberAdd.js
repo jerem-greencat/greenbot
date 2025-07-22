@@ -25,6 +25,7 @@ export default async function onGuildMemberAdd(member) {
                     userId:   member.user.id,
                     tag:      member.user.tag,
                     roles:    member.roles.cache.map(r => r.id),
+                    money:    0,  
                     joinedAt: member.joinedAt,
                 },
             },

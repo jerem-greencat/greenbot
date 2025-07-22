@@ -1,5 +1,3 @@
-// src/index.js
-
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import mongoose from 'mongoose';
@@ -23,14 +21,12 @@ client.once(Events.ClientReady, async () => {
     console.log(`👋 Connecté en tant que ${client.user.tag}`);
     
     // 1️⃣ Filtrer les guildes autorisées
-    const allowedGuildIds = process.env.GUILD_IDS
-    .split(',')
-    .map(id => id.trim());
-    const joinedGuildIds = client.guilds.cache.map(g => g.id);
-    const targetGuilds   = joinedGuildIds.filter(id => allowedGuildIds.includes(id));
-    if (targetGuilds.length === 0) {
+    const allowedGuildIds = process.env.GUILD_IDS.split(',').map(id => id.trim());
+    const targetGuilds = client.guilds.cache.map(g => g.id)
+    .filter(id => allowedGuildIds.includes(id));
+    if (!targetGuilds.length) {
         console.error('❌ Aucune guild autorisée n’est jointe → arrêt');
-        return process.exit(1);
+        process.exit(1);
     }
     
     // 2️⃣ Connexion à MongoDB
@@ -38,59 +34,61 @@ client.once(Events.ClientReady, async () => {
     console.log('✅ MongoDB connecté');
     const db = mongoose.connection.db;
     
-    // 3️⃣ Initialisation + synchronisation playersList
+    // 3️⃣ Initialisation + synchronisation playersList (+ money)
     for (const guildId of targetGuilds) {
         const collName = `server_${guildId}`;
         const coll     = db.collection(collName);
         const guild    = client.guilds.cache.get(guildId);
+        const members  = await guild.members.fetch();
         
-        // 3.a Création collection
+        // 3.a Collection
         if (!(await db.listCollections({ name: collName }).hasNext())) {
             await db.createCollection(collName);
             console.log(`🗄️ Collection créée : ${collName}`);
         }
         
-        // 3.b Récupération/insertion playersList
+        // 3.b playersList existant ?
         const existing = await coll.findOne({ _id: 'playersList' });
-        const members  = await guild.members.fetch();
-        
         if (!existing) {
-            // premier lancement : on insère tout
+            // Premier lancement : insérer tous les membres + money à 0
             const players = members.map(m => ({
                 userId:              m.user.id,
                 tag:                 m.user.tag,
                 joinedAt:            m.joinedAt,
                 roles:               m.roles.cache.map(r => r.id),
+                money:               0,
                 lastExclusiveChange: null,
             }));
             await coll.insertOne({ _id: 'playersList', createdAt: new Date(), players });
             console.log(`🧩 playersList initialisé pour ${guildId} (${players.length} joueurs)`);
-            
         } else {
-            // synchronisation : DB vs Discord
+            // Synchronisation : on corrige les rôles ET on ajoute money=0 si manquant
             const dbPlayers = Array.isArray(existing.players) ? existing.players : [];
             const currentMap = new Map(
                 members.map(m => [m.user.id, m.roles.cache.map(r => r.id)])
             );
-            const updates = [];
             
             for (const p of dbPlayers) {
-                const actual   = currentMap.get(p.userId) || [];
-                const oldRoles = Array.isArray(p.roles) ? p.roles : [];
-                const same = oldRoles.length === actual.length &&
-                oldRoles.every(rid => actual.includes(rid));
-                if (!same) updates.push({ userId: p.userId, roles: actual });
-            }
-            
-            for (const { userId, roles } of updates) {
-                await coll.updateOne(
-                    { _id: 'playersList', 'players.userId': userId },
-                    { $set: { 'players.$.roles': roles } }
-                );
-                console.log(`🔄 Rôles synchronisés en base pour ${userId} (${guildId})`);
-            }
-            if (updates.length === 0) {
-                console.log(`ℹ️ playersList déjà synchronisé pour ${guildId}`);
+                const actualRoles = currentMap.get(p.userId) || [];
+                const oldRoles    = Array.isArray(p.roles) ? p.roles : [];
+                const sameRoles   = oldRoles.length === actualRoles.length
+                && oldRoles.every(rid => actualRoles.includes(rid));
+                
+                const hasMoney    = typeof p.money === 'number';
+                
+                // Si roles différents ou money manquant, on met à jour
+                if (!sameRoles || !hasMoney) {
+                    const update = { 'players.$.roles': actualRoles };
+                    if (!hasMoney) update['players.$.money'] = 0;
+                    await coll.updateOne(
+                        { _id: 'playersList', 'players.userId': p.userId },
+                        { $set: update }
+                    );
+                    console.log(
+                        `🔄 Sync ${!sameRoles ? 'roles' : ''}${!sameRoles && !hasMoney ? ' & ' : ''}` +
+                        `${!hasMoney ? 'money' : ''} pour ${p.userId} dans ${guildId}`
+                    );
+                }
             }
         }
     }
@@ -102,8 +100,9 @@ client.once(Events.ClientReady, async () => {
     client.on(Events.InteractionCreate, onInteractionCreate);
     console.log('✅ Listeners enregistrés — démarrage complet');
     
+    
     // 5️⃣ Cron à 12:00 (dev) / 00:00 (prod) Europe/Paris
-    cron.schedule('0 12 * * *', async () => {
+    cron.schedule('0 0 * * *', async () => {
         for (const guild of client.guilds.cache.values()) {
             const coll = db.collection(`server_${guild.id}`);
             const cfg  = await coll.findOne({ _id: 'config' });
