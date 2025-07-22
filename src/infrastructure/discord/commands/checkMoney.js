@@ -1,5 +1,4 @@
 // src/infrastructure/discord/commands/checkMoney.js
-
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import mongoose from 'mongoose';
 
@@ -15,22 +14,21 @@ export default {
     ),
     
     async execute(interaction) {
-        // Qui cible-t-on ?
+        // Qui sommes‐nous ? Qui ciblons‐nous ?
         const requested = interaction.options.getUser('member');
+        const me        = interaction.user;
         const isAdmin   = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
         
-        // Si pas d'option, on cible soi-même
-        // Sinon, si on cible un autre et qu'on n'est pas admin → erreur
-        let targetUser = interaction.user;
-        if (requested) {
-            if (requested.id !== interaction.user.id && !isAdmin) {
-                return interaction.reply({
-                    content: '❌ Vous ne pouvez vérifier que votre propre solde.',
-                    ephemeral: true
-                });
-            }
-            targetUser = requested;
+        // On ne peut cibler un autre que soi‐même que si on est admin
+        if (requested && requested.id !== me.id && !isAdmin) {
+            return interaction.reply({
+                content: '❌ Vous ne pouvez vérifier que votre propre solde.',
+                ephemeral: true
+            });
         }
+        
+        // Si pas de member fourni, on se cible soi‐même
+        const targetUser = requested && requested.id ? requested : me;
         
         // Lecture en base
         const db   = mongoose.connection.db;
@@ -39,8 +37,8 @@ export default {
             { _id: 'playersList', 'players.userId': targetUser.id },
             { projection: { 'players.$': 1 } }
         );
-        
         const player = doc?.players?.[0];
+        
         if (!player) {
             return interaction.reply({
                 content: `❌ <@${targetUser.id}> n'est pas enregistré.`,
@@ -48,13 +46,12 @@ export default {
             });
         }
         
-        // Réponse
-        const self = targetUser.id === interaction.user.id;
-        return interaction.reply({
-            content: self
-            ? `💰 Vous avez **${player.money}** crédits.`
-            : `💰 <@${targetUser.id}> a **${player.money}** $.`,
-            ephemeral: true
-        });
+        // Construction du message
+        const isSelf = targetUser.id === me.id;
+        const content = isSelf
+        ? `💰 Vous avez **${player.money}** crédits.`
+        : `💰 <@${targetUser.id}> a **${player.money}** $.`;
+        
+        return interaction.reply({ content, ephemeral: true });
     },
 };
