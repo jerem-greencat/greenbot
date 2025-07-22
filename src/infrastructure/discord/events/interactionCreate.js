@@ -6,7 +6,10 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  UserSelectMenuBuilder
+  UserSelectMenuBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from 'discord.js';
 import mongoose from 'mongoose';
 
@@ -69,7 +72,7 @@ export default async function onInteractionCreate(interaction) {
         const { default: cmd } = await import('../commands/payUser.js');
         return cmd.execute(interaction);
       }
-
+      
       //  6 /remove-money
       if (interaction.commandName === 'remove-money') {
         const { default: cmd } = await import('../commands/removeMoney.js');
@@ -118,6 +121,50 @@ export default async function onInteractionCreate(interaction) {
       
       return interaction.reply({
         content: `✅ ${amount} 💶 ont été ajoutés à <@${userId}>.`,
+        ephemeral: true
+      });
+    }
+    
+    // ── ModalSubmit Remove-Money ─────────────────────────────────
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('remove_modal_')) {
+      const userId = interaction.customId.split('_')[2];
+      const raw    = interaction.fields.getTextInputValue('amount_input');
+      const amount = parseInt(raw, 10);
+      const db     = mongoose.connection.db;
+      const coll   = db.collection(`server_${interaction.guild.id}`);
+      
+      // Validation du montant
+      if (isNaN(amount) || amount < 1) {
+        return interaction.reply({ content: '❌ Montant invalide.', ephemeral: true });
+      }
+      
+      // Vérifier solde actuel
+      const doc = await coll.findOne(
+        { _id: 'playersList', 'players.userId': userId },
+        { projection: { 'players.$': 1 } }
+      );
+      const entry = doc?.players?.[0];
+      if (!entry) {
+        return interaction.reply({
+          content: `❌ <@${userId}> non trouvé.`,
+          ephemeral: true
+        });
+      }
+      if (entry.money < amount) {
+        return interaction.reply({
+          content: `❌ Solde insuffisant (actuel : ${entry.money}).`,
+          ephemeral: true
+        });
+      }
+      
+      // Retrait
+      await coll.updateOne(
+        { _id: 'playersList', 'players.userId': userId },
+        { $inc: { 'players.$.money': -amount } }
+      );
+      
+      return interaction.reply({
+        content: `✅ ${amount} crédits retirés du compte de <@${userId}>.`,
         ephemeral: true
       });
     }
