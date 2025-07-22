@@ -9,7 +9,7 @@ export default {
     .addUserOption(opt =>
         opt
         .setName('member')
-        .setDescription('Le membre à vérifier (admins seulement)')
+        .setDescription('Le membre à vérifier')
         .setRequired(false)
     ),
     
@@ -49,8 +49,8 @@ export default {
         // Construction du message
         const isSelf = targetUser.id === me.id;
         const content = isSelf
-        ? `💰 Vous avez **${player.money}** crédits.`
-        : `💰 <@${targetUser.id}> a **${player.money}** $.`;
+        ? `💶 Vous avez **${player.money}** €.`
+        : `💶 <@${targetUser.id}> a **${player.money}** €.`;
         
         return interaction.reply({ content, ephemeral: true });
     },

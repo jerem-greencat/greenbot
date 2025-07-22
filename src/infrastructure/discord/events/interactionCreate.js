@@ -63,6 +63,12 @@ export default async function onInteractionCreate(interaction) {
         const { default: cmd } = await import('../commands/checkMoney.js');
         return cmd.execute(interaction);
       }
+      
+      //  5 /pay-user
+      if (interaction.commandName === 'pay-user') {
+        const { default: cmd } = await import('../commands/payUser.js');
+        return cmd.execute(interaction);
+      }
       return;
     }
     
@@ -105,7 +111,7 @@ export default async function onInteractionCreate(interaction) {
       );
       
       return interaction.reply({
-        content: `✅ ${amount} 💰 ont été ajoutés à <@${userId}>.`,
+        content: `✅ ${amount} 💶 ont été ajoutés à <@${userId}>.`,
         ephemeral: true
       });
     }
