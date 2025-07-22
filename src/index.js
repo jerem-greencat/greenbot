@@ -39,22 +39,24 @@ client.once(Events.ClientReady, async () => {
     console.log('✅ MongoDB connecté');
     const db = mongoose.connection.db;
     
-    // 3️⃣ Initialisation collections + playersList
+    // 3️⃣ Initialisation + synchronisation playersList
     for (const guildId of targetGuilds) {
         const collName = `server_${guildId}`;
         const coll     = db.collection(collName);
         
-        // Création de la collection si absente
+        // 3.a Création de la collection si absente
         if (!(await db.listCollections({ name: collName }).hasNext())) {
             await db.createCollection(collName);
             console.log(`🗄️ Collection créée : ${collName}`);
         }
         
-        // Création du doc playersList si absent
+        // 3.b Récupération du document playersList
         const existing = await coll.findOne({ _id: 'playersList' });
+        const guild    = client.guilds.cache.get(guildId);
+        const members  = await guild.members.fetch();
+        
         if (!existing) {
-            const guild   = client.guilds.cache.get(guildId);
-            const members = await guild.members.fetch();
+            // 3.b.i Premier démarrage : on insère tous les membres
             const players = members.map(m => ({
                 userId:              m.user.id,
                 tag:                 m.user.tag,
@@ -62,13 +64,48 @@ client.once(Events.ClientReady, async () => {
                 roles:               m.roles.cache.map(r => r.id),
                 lastExclusiveChange: null,
             }));
-            
             await coll.insertOne({
                 _id:       'playersList',
                 createdAt: new Date(),
                 players,
             });
-            console.log(`🧩 playersList initialisé pour ${guildId} (${players.length} joueurs)`);
+            console.log(`🧩 playersList initialisé (${players.length} joueurs) pour ${guildId}`);
+            
+        } else {
+            // 3.b.ii Synchronisation : on compare DB vs Discord et on met à jour si nécessaire
+            const dbPlayers = existing.players; // array of {userId, roles, ...}
+            
+            // Construire map userId → roles from Discord
+            const currentMap = new Map();
+            for (const m of members.values()) {
+                currentMap.set(m.user.id, m.roles.cache.map(r => r.id));
+            }
+            
+            // Détecter changements
+            const updates = [];
+            for (const p of dbPlayers) {
+                const actual = currentMap.get(p.userId) || [];
+                // comparer sets
+                const oldSet = new Set(p.roles);
+                const newSet = new Set(actual);
+                const same = p.roles.length === actual.length && p.roles.every(rid => newSet.has(rid));
+                if (!same) {
+                    updates.push({ userId: p.userId, roles: actual });
+                }
+            }
+            
+            // Appliquer les updates en une seule opération si besoin
+            for (const { userId, roles } of updates) {
+                await coll.updateOne(
+                    { _id: 'playersList', 'players.userId': userId },
+                    { $set: { 'players.$.roles': roles } }
+                );
+                console.log(`🔄 Rôles mis à jour en base pour ${userId} dans ${guildId}`);
+            }
+            
+            if (updates.length === 0) {
+                console.log(`ℹ️ playersList déjà synchronisé pour ${guildId}`);
+            }
         }
     }
     
@@ -80,7 +117,7 @@ client.once(Events.ClientReady, async () => {
     
     console.log('✅ Listeners enregistrés — démarrage complet');
     
-    // 5️⃣ Cron à 00:00 (Europe/Paris) : rapport quotidien
+    // 5️⃣ Cron quotidien à 00:00 Europe/Paris : rapport Bears/Wolves
     cron.schedule('0 0 * * *', async () => {
         for (const guild of client.guilds.cache.values()) {
             const coll = db.collection(`server_${guild.id}`);
@@ -90,19 +127,17 @@ client.once(Events.ClientReady, async () => {
             const channel = guild.channels.cache.get(cfg.reportChannelId);
             if (!channel?.isTextBased()) continue;
             
-            // ── 1) Supprimer l’ancien message si on en a gardé l’ID
+            // 5.a Supprimer l’ancien rapport
             if (cfg.lastReportMessageId) {
                 try {
                     const oldMsg = await channel.messages.fetch(cfg.lastReportMessageId);
                     await oldMsg.delete();
-                } catch {
-                    // ignore si déjà supprimé ou introuvable
-                }
+                } catch {}
             }
             
-            // ── 2) Construire les listes Bears/Wolves
+            // 5.b Récupérer playersList et filtrer
             const playersDoc = await coll.findOne({ _id: 'playersList' });
-            const players    = playersDoc?.players ?? [];
+            const players    = playersDoc?.players || [];
             const bearName   = process.env.BEAR_ROLE_NAME;
             const wolfName   = process.env.WOLF_ROLE_NAME;
             
@@ -114,7 +149,7 @@ client.once(Events.ClientReady, async () => {
             .filter(p => guild.members.cache.get(p.userId)?.roles.cache.some(r => r.name === wolfName))
             .map(p => `<@${p.userId}>`);
             
-            // ── 3) Envoyer le nouveau rapport et enregistrer son ID
+            // 5.c Envoyer le rapport et enregistrer l’ID
             const dateStr = new Date().toLocaleDateString('fr-FR');
             const msgBody = [
                 `**📊 Rapport quotidien — ${dateStr}**`,
