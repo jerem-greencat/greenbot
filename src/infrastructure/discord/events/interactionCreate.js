@@ -1,6 +1,14 @@
 // src/infrastructure/discord/events/interactionCreate.js
-import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, UserSelectMenuBuilder, InteractionResponseFlags } from 'discord.js';
-
+import {
+  Events,
+  PermissionFlagsBits,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+  UserSelectMenuBuilder
+} from 'discord.js';
+import mongoose from 'mongoose';
 import mongoose from 'mongoose';
 
 //  ── Les messages de confirmation pour chaque rôle ───────────────
@@ -53,8 +61,7 @@ export default async function onInteractionCreate(interaction) {
       return;
     }
     
-    
-    // ─── UserSelect (choix du membre) ──────────────────────────
+     // ─── UserSelect (choix du membre) ──────────────────────────
     if (interaction.isUserSelectMenu() && interaction.customId === 'genmoney_select_user') {
       const userId = interaction.values[0];
       const modal = new ModalBuilder()
@@ -81,7 +88,7 @@ export default async function onInteractionCreate(interaction) {
       if (isNaN(amount) || amount <= 0) {
         return interaction.reply({
           content: '❌ Montant invalide.',
-          flags: InteractionResponseFlags.Ephemeral
+          ephemeral: true
         });
       }
 
@@ -94,9 +101,11 @@ export default async function onInteractionCreate(interaction) {
 
       return interaction.reply({
         content: `✅ ${amount} 💰 ont été ajoutés à <@${userId}>.`,
-        flags: InteractionResponseFlags.Ephemeral
+        ephemeral: true
       });
     }
+
+    
     // ── 2) Ne traiter que les clics de bouton ─────────────────────
     if (!interaction.isButton()) return;
     
