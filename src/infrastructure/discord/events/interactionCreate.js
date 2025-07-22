@@ -74,13 +74,13 @@ export default async function onInteractionCreate(interaction) {
       }
     }
 
-    // ── 2) Boutons Remove-Money ───────────────────────────────────
+    // ── 2) Boutons Remove-Money (avant tout autre bouton) ────────
     if (interaction.isButton() && interaction.customId.startsWith('remove_')) {
       const [ , type, userId ] = interaction.customId.split('_');
       const db   = mongoose.connection.db;
       const coll = db.collection(`server_${interaction.guild.id}`);
 
-      // Tout remettre à zéro
+      // 2.a) Tout remettre à zéro
       if (type === 'all') {
         await coll.updateOne(
           { _id: 'playersList', 'players.userId': userId },
@@ -92,7 +92,7 @@ export default async function onInteractionCreate(interaction) {
         });
       }
 
-      // Montant personnalisé : ouvrir un modal
+      // 2.b) Montant personnalisé : ouvrir un modal
       if (type === 'custom') {
         const modal = new ModalBuilder()
           .setCustomId(`remove_modal_${userId}`)
@@ -116,6 +116,7 @@ export default async function onInteractionCreate(interaction) {
       const raw    = interaction.fields.getTextInputValue('amount_input');
       const amount = parseInt(raw, 10);
 
+      // Validation
       if (isNaN(amount) || amount < 1) {
         return interaction.reply({ content: '❌ Montant invalide.', ephemeral: true });
       }
@@ -147,14 +148,18 @@ export default async function onInteractionCreate(interaction) {
       });
     }
 
-    // ── 4) Gestion des boutons exclusifs ──────────────────────────
-    if (interaction.isButton() && interaction.customId.startsWith('select_excl_')) {
+    // ── 4) Ne traiter que les autres clics de bouton ─────────────
+    if (!interaction.isButton()) return;
+
+    // ── 5) Boutons Rôles Exclusifs ───────────────────────────────
+    if (interaction.customId.startsWith('select_excl_')) {
       const member = interaction.member;
       const guild  = interaction.guild;
       const db     = mongoose.connection.db;
       const coll   = db.collection(`server_${guild.id}`);
 
-      const [, , roleKey] = interaction.customId.split('_'); // Bear, Wolf, Neutral
+      // 5.a) Quel rôle ?
+      const [, , roleKey] = interaction.customId.split('_');
       const roleNameMap = {
         Bear:    process.env.BEAR_ROLE_NAME,
         Wolf:    process.env.WOLF_ROLE_NAME,
@@ -169,35 +174,38 @@ export default async function onInteractionCreate(interaction) {
         return interaction.reply({ content: `❌ Rôle "${desiredName}" introuvable.`, ephemeral: true });
       }
 
+      // 5.b) Bypass admin / délai
       const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
-      const doc     = await coll.findOne(
+      const doc = await coll.findOne(
         { _id: 'playersList', 'players.userId': member.id },
         { projection: { 'players.$': 1 } }
       );
-      const player      = doc?.players?.[0] || {};
-      const lastChange  = player.lastExclusiveChange ? new Date(player.lastExclusiveChange) : new Date(0);
-      const now         = Date.now();
-      const delay       = 48 * 60 * 60 * 1000;
-      if (!isAdmin && (now - lastChange) < delay) {
+      const player     = doc?.players?.[0] || {};
+      const lastChange = player.lastExclusiveChange
+        ? new Date(player.lastExclusiveChange)
+        : new Date(0);
+      const now   = Date.now();
+      const delay = 48 * 60 * 60 * 1000;
+      if (!isAdmin && now - lastChange < delay) {
         return interaction.reply({
-          content: `🕒 Vous ne pouvez changer votre rôle exclusif qu'une fois toutes les 48 h.\nDernière modif : ${lastChange.toLocaleString()}.`,
+          content: `🕒 Délai 48 h non écoulé.\nDernière modif : ${lastChange.toLocaleString()}.`,
           ephemeral: true
         });
       }
 
-      // Retirer les autres exclusifs
+      // 5.c) Retirer anciens exclusifs
       const exclusiveNames = Object.values(roleNameMap);
       const toRemove = member.roles.cache
         .filter(r => exclusiveNames.includes(r.name) && r.id !== desiredRole.id)
         .map(r => r.id);
       if (toRemove.length) await member.roles.remove(toRemove);
 
-      // Ajouter le rôle choisi
+      // 5.d) Ajouter le nouveau
       if (!member.roles.cache.has(desiredRole.id)) {
         await member.roles.add(desiredRole.id);
       }
 
-      // Mettre à jour en base
+      // 5.e) Mise à jour DB
       const updated = await member.fetch();
       const roleIds = updated.roles.cache
         .filter(r => r.id !== guild.id)
@@ -213,10 +221,11 @@ export default async function onInteractionCreate(interaction) {
         { arrayFilters: [{ 'p.userId': member.id }] }
       );
 
+      // 5.f) Confirmation
       let key = roleKey.toLowerCase();
       if (key === 'neutral') key = 'neutre';
-      const template = roleMessages[key] ?? '✅ Votre rôle a été mis à jour.';
-      const content  = template.replace('{{id}}', member.id);
+      const tmpl   = roleMessages[key] ?? '✅ Rôle mis à jour.';
+      const content = tmpl.replace('{{id}}', member.id);
       return interaction.reply({ content, ephemeral: false });
     }
 
@@ -224,7 +233,8 @@ export default async function onInteractionCreate(interaction) {
     console.error('Erreur dans interactionCreate:', err);
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply({ content: '❌ Une erreur est survenue.' });
+    } else {
+      return interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
     }
-    return interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
   }
 }
