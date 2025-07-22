@@ -9,7 +9,6 @@ import {
   UserSelectMenuBuilder
 } from 'discord.js';
 import mongoose from 'mongoose';
-import mongoose from 'mongoose';
 
 //  ── Les messages de confirmation pour chaque rôle ───────────────
 const roleMessages = {
@@ -105,7 +104,7 @@ export default async function onInteractionCreate(interaction) {
       });
     }
 
-    
+
     // ── 2) Ne traiter que les clics de bouton ─────────────────────
     if (!interaction.isButton()) return;
     
