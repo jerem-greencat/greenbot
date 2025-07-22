@@ -50,13 +50,13 @@ client.once(Events.ClientReady, async () => {
             console.log(`🗄️ Collection créée : ${collName}`);
         }
         
-        // 3.b Récupération du document playersList
+        // 3.b Récupération ou insertion initiale de playersList
         const existing = await coll.findOne({ _id: 'playersList' });
         const guild    = client.guilds.cache.get(guildId);
         const members  = await guild.members.fetch();
         
         if (!existing) {
-            // 3.b.i Premier démarrage : on insère tous les membres
+            // Premier lancement : on insère tous les membres
             const players = members.map(m => ({
                 userId:              m.user.id,
                 tag:                 m.user.tag,
@@ -69,38 +69,33 @@ client.once(Events.ClientReady, async () => {
                 createdAt: new Date(),
                 players,
             });
-            console.log(`🧩 playersList initialisé (${players.length} joueurs) pour ${guildId}`);
+            console.log(`🧩 playersList initialisé pour ${guildId} (${players.length} joueurs)`);
             
         } else {
-            // 3.b.ii Synchronisation : on compare DB vs Discord et on met à jour si nécessaire
-            const dbPlayers = existing.players; // array of {userId, roles, ...}
+            // Synchronisation : on compare DB vs Discord
+            const dbPlayers = Array.isArray(existing.players) ? existing.players : [];
             
-            // Construire map userId → roles from Discord
-            const currentMap = new Map();
-            for (const m of members.values()) {
-                currentMap.set(m.user.id, m.roles.cache.map(r => r.id));
-            }
+            // Map userId → roles actuels
+            const currentMap = new Map(
+                members.map(m => [m.user.id, m.roles.cache.map(r => r.id)])
+            );
             
-            // Détecter changements
             const updates = [];
             for (const p of dbPlayers) {
-                const actual = currentMap.get(p.userId) || [];
-                // comparer sets
-                const oldSet = new Set(p.roles);
-                const newSet = new Set(actual);
-                const same = p.roles.length === actual.length && p.roles.every(rid => newSet.has(rid));
+                const actual   = currentMap.get(p.userId) || [];
+                const oldRoles = Array.isArray(p.roles) ? p.roles : [];
+                const same     = oldRoles.length === actual.length && oldRoles.every(rid => actual.includes(rid));
                 if (!same) {
                     updates.push({ userId: p.userId, roles: actual });
                 }
             }
             
-            // Appliquer les updates en une seule opération si besoin
             for (const { userId, roles } of updates) {
                 await coll.updateOne(
                     { _id: 'playersList', 'players.userId': userId },
                     { $set: { 'players.$.roles': roles } }
                 );
-                console.log(`🔄 Rôles mis à jour en base pour ${userId} dans ${guildId}`);
+                console.log(`🔄 Rôles synchronisés en base pour ${userId} (${guildId})`);
             }
             
             if (updates.length === 0) {
@@ -117,7 +112,7 @@ client.once(Events.ClientReady, async () => {
     
     console.log('✅ Listeners enregistrés — démarrage complet');
     
-    // 5️⃣ Cron quotidien à 00:00 Europe/Paris : rapport Bears/Wolves
+    // 5️⃣ Cron quotidien à 00:00 Europe/Paris : rapport Bear/Wolf
     cron.schedule('0 0 * * *', async () => {
         for (const guild of client.guilds.cache.values()) {
             const coll = db.collection(`server_${guild.id}`);
@@ -127,15 +122,17 @@ client.once(Events.ClientReady, async () => {
             const channel = guild.channels.cache.get(cfg.reportChannelId);
             if (!channel?.isTextBased()) continue;
             
-            // 5.a Supprimer l’ancien rapport
+            // 5.a) Supprimer l’ancien message
             if (cfg.lastReportMessageId) {
                 try {
                     const oldMsg = await channel.messages.fetch(cfg.lastReportMessageId);
                     await oldMsg.delete();
-                } catch {}
+                } catch {
+                    // ignore
+                }
             }
             
-            // 5.b Récupérer playersList et filtrer
+            // 5.b) Construire les listes
             const playersDoc = await coll.findOne({ _id: 'playersList' });
             const players    = playersDoc?.players || [];
             const bearName   = process.env.BEAR_ROLE_NAME;
@@ -144,12 +141,11 @@ client.once(Events.ClientReady, async () => {
             const bears = players
             .filter(p => guild.members.cache.get(p.userId)?.roles.cache.some(r => r.name === bearName))
             .map(p => `<@${p.userId}>`);
-            
             const wolves = players
             .filter(p => guild.members.cache.get(p.userId)?.roles.cache.some(r => r.name === wolfName))
             .map(p => `<@${p.userId}>`);
             
-            // 5.c Envoyer le rapport et enregistrer l’ID
+            // 5.c) Envoyer et enregistrer nouvel ID
             const dateStr = new Date().toLocaleDateString('fr-FR');
             const msgBody = [
                 `**📊 Rapport quotidien — ${dateStr}**`,
