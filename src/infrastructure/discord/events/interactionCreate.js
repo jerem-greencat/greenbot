@@ -222,7 +222,7 @@ export default async function onInteractionCreate(interaction) {
       if (key === 'neutral') key = 'neutre';
       const tmpl   = roleMessages[key] ?? '✅ Rôle mis à jour.';
       const content = tmpl.replace('{{id}}', member.id);
-      return interaction.reply({ content, ephemeral: false });
+      return interaction.reply({ content, ephemeral: true });
     }
 
   } catch (err) {
