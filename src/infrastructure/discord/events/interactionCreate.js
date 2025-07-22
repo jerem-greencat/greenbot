@@ -164,7 +164,7 @@ export default async function onInteractionCreate(interaction) {
       );
       
       return interaction.reply({
-        content: `✅ ${amount} crédits retirés du compte de <@${userId}>.`,
+        content: `✅ ${amount} euros retirés du compte de <@${userId}>.`,
         ephemeral: true
       });
     }
