@@ -1,4 +1,6 @@
-import { SlashCommandBuilder } from 'discord.js';
+// src/infrastructure/discord/commands/checkMoney.js
+
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import mongoose from 'mongoose';
 
 export default {
@@ -8,32 +10,51 @@ export default {
     .addUserOption(opt =>
         opt
         .setName('member')
-        .setDescription('Le membre à vérifier')
-        .setRequired(true)
+        .setDescription('Le membre à vérifier (admins seulement)')
+        .setRequired(false)
     ),
     
     async execute(interaction) {
-        // Récupère l’utilisateur mentionné
-        const user = interaction.options.getUser('member');
+        // Qui cible-t-on ?
+        const requested = interaction.options.getUser('member');
+        const isAdmin   = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+        
+        let targetUser;
+        if (requested) {
+            if (!isAdmin) {
+                return interaction.reply({
+                    content: '❌ Vous ne pouvez vérifier que votre propre solde.',
+                    ephemeral: true
+                });
+            }
+            targetUser = requested;
+        } else {
+            // si pas d'option, cible toujours soi-même
+            targetUser = interaction.user;
+        }
+        
+        // Lecture en base
         const db   = mongoose.connection.db;
         const coll = db.collection(`server_${interaction.guildId}`);
-        
-        // Cherche son entrée dans playersList
-        const doc = await coll.findOne(
-            { _id: 'playersList', 'players.userId': user.id },
+        const doc  = await coll.findOne(
+            { _id: 'playersList', 'players.userId': targetUser.id },
             { projection: { 'players.$': 1 } }
         );
+        
         const player = doc?.players?.[0];
         if (!player) {
             return interaction.reply({
-                content: `❌ <@${user.id}> n'est pas enregistré.`,
+                content: `❌ <@${targetUser.id}> n'est pas enregistré.`,
                 ephemeral: true
             });
         }
         
-        // Affiche son solde
+        // Réponse
+        const self = targetUser.id === interaction.user.id;
         return interaction.reply({
-            content: `💰 <@${user.id}> a **${player.money}** $.`,
+            content: self
+            ? `💰 Vous avez **${player.money}** crédits.`
+            : `💰 <@${targetUser.id}> a **${player.money}** $.`,
             ephemeral: true
         });
     },
