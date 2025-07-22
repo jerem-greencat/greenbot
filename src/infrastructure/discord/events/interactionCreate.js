@@ -1,15 +1,13 @@
 // src/infrastructure/discord/events/interactionCreate.js
 
 import {
-  Events,
   PermissionFlagsBits,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  UserSelectMenuBuilder
+  ButtonStyle
 } from 'discord.js';
 import mongoose from 'mongoose';
 
@@ -74,7 +72,7 @@ export default async function onInteractionCreate(interaction) {
       }
     }
 
-    // ── 2) Boutons Remove-Money (avant tout autre bouton) ────────
+    // ── 2) Boutons Remove-Money ───────────────────────────────────
     if (interaction.isButton() && interaction.customId.startsWith('remove_')) {
       const [ , type, userId ] = interaction.customId.split('_');
       const db   = mongoose.connection.db;
@@ -116,7 +114,6 @@ export default async function onInteractionCreate(interaction) {
       const raw    = interaction.fields.getTextInputValue('amount_input');
       const amount = parseInt(raw, 10);
 
-      // Validation
       if (isNaN(amount) || amount < 1) {
         return interaction.reply({ content: '❌ Montant invalide.', ephemeral: true });
       }
@@ -151,7 +148,7 @@ export default async function onInteractionCreate(interaction) {
     // ── 4) Ne traiter que les autres clics de bouton ─────────────
     if (!interaction.isButton()) return;
 
-    // ── 5) Boutons Rôles Exclusifs ───────────────────────────────
+    // ── 5) Boutons Rôles Exclusifs ────────────────────────────────
     if (interaction.customId.startsWith('select_excl_')) {
       const member = interaction.member;
       const guild  = interaction.guild;
@@ -159,7 +156,7 @@ export default async function onInteractionCreate(interaction) {
       const coll   = db.collection(`server_${guild.id}`);
 
       // 5.a) Quel rôle ?
-      const [, , roleKey] = interaction.customId.split('_');
+      const [, , roleKey] = interaction.customId.split('_'); // Bear, Wolf, Neutral
       const roleNameMap = {
         Bear:    process.env.BEAR_ROLE_NAME,
         Wolf:    process.env.WOLF_ROLE_NAME,
@@ -205,7 +202,7 @@ export default async function onInteractionCreate(interaction) {
         await member.roles.add(desiredRole.id);
       }
 
-      // 5.e) Mise à jour DB
+      // 5.e) Mise à jour DB sans arrayFilters
       const updated = await member.fetch();
       const roleIds = updated.roles.cache
         .filter(r => r.id !== guild.id)
@@ -217,8 +214,7 @@ export default async function onInteractionCreate(interaction) {
             'players.$.roles':               roleIds,
             'players.$.lastExclusiveChange': new Date()
           }
-        },
-        { arrayFilters: [{ 'p.userId': member.id }] }
+        }
       );
 
       // 5.f) Confirmation
