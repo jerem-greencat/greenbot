@@ -1,5 +1,6 @@
 // src/infrastructure/discord/events/interactionCreate.js
-import { Events, PermissionFlagsBits } from 'discord.js';
+import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, UserSelectMenuBuilder, InteractionResponseFlags } from 'discord.js';
+
 import mongoose from 'mongoose';
 
 //  ── Les messages de confirmation pour chaque rôle ───────────────
@@ -53,48 +54,49 @@ export default async function onInteractionCreate(interaction) {
     }
     
     
-    // ─── UserSelect (choix du membre pour generate-money) ────────
+    // ─── UserSelect (choix du membre) ──────────────────────────
     if (interaction.isUserSelectMenu() && interaction.customId === 'genmoney_select_user') {
       const userId = interaction.values[0];
-      // Ouvrir un Modal pour demander le montant
       const modal = new ModalBuilder()
-      .setCustomId(`genmoney_modal_${userId}`)
-      .setTitle('Générer de l’argent');
-      
+        .setCustomId(`genmoney_modal_${userId}`)
+        .setTitle('Générer de l’argent');
+
       const input = new TextInputBuilder()
-      .setCustomId('amount_input')
-      .setLabel('Montant à ajouter')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Entrez un nombre entier')
-      .setRequired(true);
-      
-      modal.addComponents(new ARB().addComponents(input));
+        .setCustomId('amount_input')
+        .setLabel('Montant à ajouter')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Entrez un nombre entier')
+        .setRequired(true);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+
       return interaction.showModal(modal);
     }
-    
-    // ─── ModalSubmit pour generate-money ─────────────────────────
+
+    // ─── ModalSubmit (saisie du montant) ────────────────────────
     if (interaction.isModalSubmit() && interaction.customId.startsWith('genmoney_modal_')) {
       const userId = interaction.customId.split('_')[2];
       const raw    = interaction.fields.getTextInputValue('amount_input');
       const amount = parseInt(raw, 10);
       if (isNaN(amount) || amount <= 0) {
-        return interaction.reply({ content: '❌ Montant invalide.', ephemeral: true });
+        return interaction.reply({
+          content: '❌ Montant invalide.',
+          flags: InteractionResponseFlags.Ephemeral
+        });
       }
-      
-      // Met à jour en base
+
       const db   = mongoose.connection.db;
       const coll = db.collection(`server_${interaction.guild.id}`);
       await coll.updateOne(
         { _id: 'playersList', 'players.userId': userId },
         { $inc: { 'players.$.money': amount } }
       );
-      
+
       return interaction.reply({
         content: `✅ ${amount} 💰 ont été ajoutés à <@${userId}>.`,
-        ephemeral: true
+        flags: InteractionResponseFlags.Ephemeral
       });
     }
-    
     // ── 2) Ne traiter que les clics de bouton ─────────────────────
     if (!interaction.isButton()) return;
     
