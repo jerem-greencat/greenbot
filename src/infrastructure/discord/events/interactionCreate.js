@@ -141,7 +141,7 @@ export default async function onInteractionCreate(interaction) {
         { $inc: { 'players.$.money': -amount } }
       );
       return interaction.reply({
-        content: `✅ ${amount} crédits retirés de <@${userId}>.`,
+        content: `✅ ${amount} euros retirés de <@${userId}>.`,
         ephemeral: true
       });
     }
