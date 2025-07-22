@@ -7,9 +7,6 @@ import {
   TextInputStyle,
   ActionRowBuilder,
   UserSelectMenuBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
 } from 'discord.js';
 import mongoose from 'mongoose';
 
