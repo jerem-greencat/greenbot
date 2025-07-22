@@ -57,28 +57,34 @@ export default async function onInteractionCreate(interaction) {
         const { default: cmd } = await import('../commands/generateMoney.js');
         return cmd.execute(interaction);
       }
+      
+      // 4 /check-money
+      if (interaction.commandName === 'check-money') {
+        const { default: cmd } = await import('../commands/checkMoney.js');
+        return cmd.execute(interaction);
+      }
       return;
     }
     
-     // ─── UserSelect (choix du membre) ──────────────────────────
+    // ─── UserSelect (choix du membre) ──────────────────────────
     if (interaction.isUserSelectMenu() && interaction.customId === 'genmoney_select_user') {
       const userId = interaction.values[0];
       const modal = new ModalBuilder()
-        .setCustomId(`genmoney_modal_${userId}`)
-        .setTitle('Générer de l’argent');
-
+      .setCustomId(`genmoney_modal_${userId}`)
+      .setTitle('Générer de l’argent');
+      
       const input = new TextInputBuilder()
-        .setCustomId('amount_input')
-        .setLabel('Montant à ajouter')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('Entrez un nombre entier')
-        .setRequired(true);
-
+      .setCustomId('amount_input')
+      .setLabel('Montant à ajouter')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Entrez un nombre entier')
+      .setRequired(true);
+      
       modal.addComponents(new ActionRowBuilder().addComponents(input));
-
+      
       return interaction.showModal(modal);
     }
-
+    
     // ─── ModalSubmit (saisie du montant) ────────────────────────
     if (interaction.isModalSubmit() && interaction.customId.startsWith('genmoney_modal_')) {
       const userId = interaction.customId.split('_')[2];
@@ -90,21 +96,21 @@ export default async function onInteractionCreate(interaction) {
           ephemeral: true
         });
       }
-
+      
       const db   = mongoose.connection.db;
       const coll = db.collection(`server_${interaction.guild.id}`);
       await coll.updateOne(
         { _id: 'playersList', 'players.userId': userId },
         { $inc: { 'players.$.money': amount } }
       );
-
+      
       return interaction.reply({
         content: `✅ ${amount} 💰 ont été ajoutés à <@${userId}>.`,
         ephemeral: true
       });
     }
-
-
+    
+    
     // ── 2) Ne traiter que les clics de bouton ─────────────────────
     if (!interaction.isButton()) return;
     
