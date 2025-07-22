@@ -52,9 +52,9 @@ export default async function onInteractionCreate(interaction) {
         return cmd.execute(interaction);
       }
       
-      // 3 /generate-money
-      if (interaction.commandName === 'generate-money') {
-        const { default: cmd } = await import('../commands/generateMoney.js');
+      // 3 /add-money
+      if (interaction.commandName === 'add-money') {
+        const { default: cmd } = await import('../commands/addMoney.js');
         return cmd.execute(interaction);
       }
       
@@ -67,6 +67,12 @@ export default async function onInteractionCreate(interaction) {
       //  5 /pay-user
       if (interaction.commandName === 'pay-user') {
         const { default: cmd } = await import('../commands/payUser.js');
+        return cmd.execute(interaction);
+      }
+
+      //  6 /remove-money
+      if (interaction.commandName === 'remove-money') {
+        const { default: cmd } = await import('../commands/removeMoney.js');
         return cmd.execute(interaction);
       }
       return;

@@ -7,7 +7,7 @@ import {
 
 export default {
     data: new SlashCommandBuilder()
-    .setName('generate-money')
+    .setName('add-money')
     .setDescription('Ajoute de l’argent au compte d’un membre')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
     

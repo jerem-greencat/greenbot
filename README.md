@@ -27,8 +27,8 @@ Bot Discord
     * /set-report-channel
 
 ## Commandes economy
-    * /generate-money
+    * /add-money
     * /check-money
     * /remove-money : todo
     * /reset-money : todo
-    * /pay-user : todo
+    * /pay-user 
