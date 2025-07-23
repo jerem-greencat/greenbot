@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 export default {
     data: new SlashCommandBuilder()
     .setName('pay-user')
-    .setDescription('Transférer des crédits de votre compte vers celui d’un autre joueur.')
+    .setDescription("Transférer de l'argent de votre compte vers celui d’un autre joueur.")
     .addUserOption(opt =>
         opt
         .setName('member')
@@ -37,7 +37,7 @@ export default {
         const db   = mongoose.connection.db;
         const coll = db.collection(`server_${guildId}`);
         
-        // 1️⃣ Vérifier que le payeur existe et a assez de crédits
+        // 1️⃣ Vérifier que le payeur existe et a assez d'argent
         const payerDoc = await coll.findOne(
             { _id: 'playersList', 'players.userId': payer.id },
             { projection: { 'players.$': 1 } }

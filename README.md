@@ -30,5 +30,5 @@ Bot Discord
     * /add-money 
     * /check-money
     * /remove-money 
-    * /reset-money : todo
     * /pay-user 
+    * /check-all-money
