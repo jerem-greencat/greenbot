@@ -109,7 +109,16 @@ client.once(Events.ClientReady, async () => {
             if (!cfg?.reportChannelId) continue;
             
             const channel = guild.channels.cache.get(cfg.reportChannelId);
-            if (!channel?.isTextBased()) continue;
+            if (!channel?.isTextBased()) {
+                console.warn(`⚠️ Le salon ${cfg.reportChannelId} n’est pas un salon texte.`);
+                continue;
+            }
+            const me = guild.members.cache.get(client.user.id);
+            const perms = channel.permissionsFor(me);
+            if (!perms || !perms.has(['ViewChannel','SendMessages'])) {
+                console.warn(`⚠️ Pas la permission d’envoyer dans ${channel.id} sur ${guild.id}.`);
+                continue;
+            }
             
             // 5.a) Supprimer l’ancien rapport
             if (cfg.lastReportMessageId) {
