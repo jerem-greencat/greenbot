@@ -12,5 +12,7 @@
         "dotenv": "^16.6.1",
         "mongoose": "^8.16.4",
         "node-cron": "^4.2.1"
-    }
+    },
+    "engines": { "node": "20.x" }
+
 }

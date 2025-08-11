@@ -2,38 +2,75 @@
 import { REST, Routes } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// __dirname en ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-// Charge toutes les commandes du dossier
+// --- util ---
+const need = (k) => {
+    const v = process.env[k];
+    if (!v) throw new Error(`Variable d'env manquante: ${k}`);
+    return v;
+};
+
+const DISCORD_TOKEN = need('DISCORD_TOKEN');
+const CLIENT_ID     = need('CLIENT_ID');
+const GUILD_IDS     = need('GUILD_IDS').split(',').map(s => s.trim()).filter(Boolean);
+
+// Marqueur pour empêcher les effets de bord dans les modules importés
+process.env.COMMANDS_DEPLOY = '1';
+
+// --- charger les commandes (sans effets de bord) ---
+const commandsDir = path.join(__dirname, 'src/infrastructure/discord/commands');
 const commands = [];
-const commandsPath = path.join(__dirname, 'src/infrastructure/discord/commands');
-for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-    const { default: command } = await import(path.join(commandsPath, file));
-    commands.push(command.data.toJSON());
+
+for (const file of fs.readdirSync(commandsDir).filter(f => f.endsWith('.js'))) {
+    const url = pathToFileURL(path.join(commandsDir, file)).href;
+    try {
+        const mod = await import(url);
+        const cmd = mod?.default;
+        if (!cmd?.data?.toJSON) {
+            console.warn(`⚠️  ${file} ignoré (pas de export default.data).`);
+            continue;
+        }
+        commands.push(cmd.data.toJSON());
+    } catch (e) {
+        console.error(`❌ Import raté pour ${file}:`, e);
+        process.exitCode = 1;
+    }
 }
 
-// Initialise le client REST
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+const rest = new REST({
+    version: '10',
+    timeout: 15_000,  // par défaut 15s, on l'indique explicitement
+    retries: 3        // par défaut 3, idem
+}).setToken(DISCORD_TOKEN);
 
+// --- déploiement ---
 (async () => {
-    try {
-        console.log(`🛠️  (Re)Déploiement de ${commands.length} commandes… :`);
-        // Pour chaque guild de test
-        for (const gid of process.env.GUILD_IDS.split(',').map(i => i.trim())) {
-            await rest.put(
-                Routes.applicationGuildCommands(process.env.CLIENT_ID, gid),
-                { body: commands }
-            );
-            console.log(`  • Déployé dans ${gid}`);
+    const t0 = Date.now();
+    console.log(`🛠️  (Re)Déploiement de ${commands.length} commandes…`);
+    
+    for (const gid of GUILD_IDS) {
+        console.log(`→ Déploiement sur ${gid}…`);
+        try {
+            await rest.put(Routes.applicationGuildCommands(CLIENT_ID, gid), { body: commands });
+            console.log(`✓ OK ${gid}`);
+        } catch (err) {
+            console.error(`✗ Échec ${gid}:`, err?.status ?? '', err?.message ?? err);
+            // on continue avec les autres guilds
+            process.exitCode = 1;
         }
-        console.log('✅ Commandes (re)déployées.');
-    } catch (err) {
-        console.error('❌ Erreur de déploiement :', err);
     }
-})();
+    
+    // Diagnostique rapide si ça traîne
+    const handles = (process._getActiveHandles?.() ?? []).map(h => h?.constructor?.name ?? 'unknown');
+    if (handles.length) console.warn('⚠️  Handles encore ouverts:', handles);
+    
+    console.log(`✅ Terminé en ${Math.round((Date.now() - t0)/1000)}s.`);
+})()
+.catch(e => { console.error('❌ Erreur fatale:', e); process.exitCode = 1; })
+.finally(() => setTimeout(() => process.exit(process.exitCode ?? 0), 0));
