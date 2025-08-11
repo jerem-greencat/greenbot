@@ -23,7 +23,7 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
     try {
-        console.log(`🛠️  (Re)Déploiement de ${commands.length} commandes…`);
+        console.log(`🛠️  (Re)Déploiement de ${commands.length} commandes… :`);
         // Pour chaque guild de test
         for (const gid of process.env.GUILD_IDS.split(',').map(i => i.trim())) {
             await rest.put(
